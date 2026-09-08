@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101722" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>《在答案之前》· 用户测试观察台</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./research.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+    <main class="research-shell">
+      <header class="research-header">
+        <div class="brand"><div class="brand-mark">研</div><div><p>LOCAL RESEARCH CONSOLE · v0.6</p><h1>用户测试观察台</h1></div></div>
+        <nav><a href="./privacy.html">数据说明</a><a href="./index.html">返回游戏</a></nav>
+      </header>
+      <section class="research-hero panel">
+        <div><div class="eyebrow">只在本机解析</div><h2>把多份匿名试玩记录放在一起看</h2><p>导入玩家主动发送给你的JSON文件。页面不会上传文件；刷新后数据清空。</p></div>
+        <div class="import-actions">
+          <label class="primary-button">选择JSON记录<input id="file-input" type="file" accept="application/json,.json" multiple /></label>
+          <button id="demo-button" class="ghost-button">载入3份演示记录</button>
+          <button id="clear-button" class="ghost-button">清空</button>
+        </div>
+      </section>
+      <div id="analysis-root"></div>
+    </main>
+    <script type="module" src="./js/research-dashboard.js"></script>
+  </body>
+</html>
