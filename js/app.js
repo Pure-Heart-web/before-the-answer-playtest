@@ -33,6 +33,7 @@ import {
   startResearchSession,
   unlockedKnowledgeIds,
 } from "./engine.js";
+import { audioEnabled, ensureAudio, playCue, toggleAudio } from "./audio.js";
 
 const STORAGE_KEY = "before-the-answer-v04";
 const app = document.querySelector("#app");
@@ -84,6 +85,28 @@ function currentHypothesis() {
   return hypotheses.find((item) => item.id === state.activeHypothesis);
 }
 
+function sceneArt() {
+  if (state.challengeCompleted || (state.story?.sceneIndex ?? 0) >= storyScenes.length) return "platform";
+  if ((state.story?.sceneIndex ?? 0) > 0 || state.evidence.length > 0) return "shop";
+  return "campus";
+}
+
+function currentObjective() {
+  const storyScene = currentStoryScene(state);
+  if (storyScene) return `进入「${storyScene.title}」，决定怎样用时间换取认识`;
+  if (state.challengeCompleted) return "接受这次世界反馈，决定是否把路线带入下一阶段";
+  if (challengeAvailability(state).allowed) return "把已经形成的理解带入零价浪潮，选择下一步行动";
+  return state.evidence.length
+    ? "比较证据与代价：继续探索，或形成当前工作假设"
+    : "从真实行为中取得第一条证据，不要只收集口头称赞";
+}
+
+function ratingChoices(field, selected, low, high) {
+  return `<fieldset class="rating-choice"><legend>${field.label}</legend><small>${low}</small><div>${[1, 2, 3, 4, 5]
+    .map((value) => `<label><input type="radio" name="rating-${field.id}" value="${value}" data-research-field="${field.id}" ${String(selected) === String(value) ? "checked" : ""}/><span>${value}</span></label>`)
+    .join("")}</div><small>${high}</small></fieldset>`;
+}
+
 function meter(label, value, max, tone = "blue") {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return `
@@ -99,12 +122,13 @@ function renderHeader() {
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">答</div>
-        <div><p>创业认知模拟 · v0.6</p><h1>在答案之前</h1></div>
+        <div><p>创业认知剧情游戏 · v0.7</p><h1>在答案之前</h1></div>
       </div>
       <div class="time-orbit" aria-label="剩余时间">
         <span>毕业倒计时</span><strong>${remaining}</strong><em>天</em>
       </div>
       <div class="top-actions">
+        <button class="ghost-button audio-button ${audioEnabled() ? "active" : ""}" data-command="audio" aria-pressed="${audioEnabled()}">${audioEnabled() ? "♪ 音景开启" : "音景关闭"}</button>
         <button class="ghost-button research-button ${state.research?.mode ? "active" : ""}" data-command="research">${state.research?.mode ? "测试记录" : "用户测试"}</button>
         <button class="ghost-button" data-command="knowledge">认知云图</button>
         <button class="ghost-button" data-command="hypothesis">形成假设</button>
@@ -153,7 +177,9 @@ function renderWorld() {
   const challengeStatus = challengeAvailability(state);
   const storyScene = currentStoryScene(state);
   return `
-    <section class="story-stage panel">
+    <section class="story-stage panel art-${sceneArt()}">
+      <div class="stage-art" aria-hidden="true"></div>
+      <div class="mission-ribbon"><i></i><div><span>当前目标</span><strong>${currentObjective()}</strong></div></div>
       <div class="stage-gradient"></div>
       <div class="scene-kicker">DAY ${String(state.day).padStart(2, "0")} · 毕业前 ${remaining} 天</div>
       <h2>${latest?.title ?? "机会没有写着答案"}</h2>
@@ -339,7 +365,7 @@ function renderOpening() {
   return `
     <div class="modal-backdrop cinematic">
       <section class="opening-card">
-        <div class="opening-number">42</div>
+        <div class="opening-number"><span>42</span><small>每一次认识，都要用生活交换</small></div>
         <div class="opening-copy">
           <span class="chapter">CHAPTER 01 · 毕业以前</span>
           <h1>在答案之前</h1>
@@ -347,6 +373,7 @@ function renderOpening() {
           <div class="role-note"><strong>你的角色</strong><span>像一位大模型顾问那样整理信息、提出建议，但没有强制权。</span></div>
           <button class="primary-button" data-command="start">进入第1天 <i>→</i></button>
           <button class="test-mode-button" data-command="test-start">作为匿名测试者开始</button>
+          <button class="opening-audio" data-command="audio">${audioEnabled() ? "♪ 音景已准备 · 点击关闭" : "音景已关闭 · 点击开启"}</button>
           <small>教学原型，不构成现实投资或职业建议。<a href="./privacy.html">查看测试数据说明</a></small>
         </div>
       </section>
@@ -357,7 +384,8 @@ function renderStoryModal() {
   const scene = currentStoryScene(state);
   if (!scene) return "";
   return `
-    <div class="modal-backdrop story-backdrop">
+    <div class="modal-backdrop story-backdrop art-shop">
+      <div class="modal-scene-art" aria-hidden="true"></div>
       <section class="modal-card story-modal">
         <button class="modal-close" data-command="close">×</button>
         <div class="story-progress"><i class="done"></i><i class="${state.story.sceneIndex >= 1 ? "done" : ""}"></i><i></i><span>${scene.chapter}</span></div>
@@ -429,32 +457,26 @@ function dimensionChips(assessment) {
     .join("");
 }
 
-function ratingOptions(selected) {
-  return `<option value="">请选择</option>${[1, 2, 3, 4, 5]
-    .map((value) => `<option value="${value}" ${String(selected) === String(value) ? "selected" : ""}>${value}</option>`)
-    .join("")}`;
-}
-
 function renderResearchModal() {
   const research = state.research;
   const metrics = researchMetrics(state);
 
   if (!research?.mode) {
     return `
-      <div class="modal-backdrop research-backdrop">
-        <section class="modal-card research-modal">
+      <div class="modal-backdrop research-backdrop dossier-backdrop">
+        <section class="modal-card research-modal dossier-card">
           <button class="modal-close" data-command="close">×</button>
-          <div class="eyebrow">匿名测试 · 约20—30分钟</div>
-          <h2>先记录你还没玩游戏时的判断</h2>
-          <div class="privacy-note"><strong>数据边界</strong><p>不收集姓名和联系方式。全部记录只保存在这个浏览器中；只有你点击导出后，才会生成本地JSON文件。</p></div>
+          <div class="case-heading"><div class="case-seal">00</div><div><div class="eyebrow">序章委托 · 匿名体验线</div><h2>在认识林澈以前，<br/>留下一次未经提示的判断</h2></div></div>
+          <div class="mission-brief"><span>任务目标</span><p>阅读一份与你稍后旅程无关的陌生委托，写下此刻真正会采取的下一步。它会被封存到终幕，不会决定你的好坏。</p></div>
+          <div class="privacy-note"><strong>记录边界</strong><p>不收集姓名和联系方式。记录只保存在这个浏览器中；只有你在终幕主动导出，才会生成本地文件。</p></div>
           <div class="research-profile">
-            <label>你目前更接近<select data-research-field="cohort"><option ${researchDraft.cohort === "大学生" ? "selected" : ""}>大学生</option><option ${researchDraft.cohort === "在职员工" ? "selected" : ""}>在职员工</option><option ${researchDraft.cohort === "离职或待业" ? "selected" : ""}>离职或待业</option><option ${researchDraft.cohort === "其他" ? "selected" : ""}>其他</option></select></label>
-            <label>相关经历<select data-research-field="experience"><option ${researchDraft.experience === "没有实际创业经历" ? "selected" : ""}>没有实际创业经历</option><option ${researchDraft.experience === "做过副业或小项目" ? "selected" : ""}>做过副业或小项目</option><option ${researchDraft.experience === "有全职创业经历" ? "selected" : ""}>有全职创业经历</option></select></label>
+            <label><span>你的当前身份</span><select data-research-field="cohort"><option ${researchDraft.cohort === "大学生" ? "selected" : ""}>大学生</option><option ${researchDraft.cohort === "在职员工" ? "selected" : ""}>在职员工</option><option ${researchDraft.cohort === "离职或待业" ? "selected" : ""}>离职或待业</option><option ${researchDraft.cohort === "其他" ? "selected" : ""}>其他</option></select></label>
+            <label><span>你带来的现实经历</span><select data-research-field="experience"><option ${researchDraft.experience === "没有实际创业经历" ? "selected" : ""}>没有实际创业经历</option><option ${researchDraft.experience === "做过副业或小项目" ? "selected" : ""}>做过副业或小项目</option><option ${researchDraft.experience === "有全职创业经历" ? "selected" : ""}>有全职创业经历</option></select></label>
           </div>
           <article class="transfer-case"><span>${transferScenarios.baseline.title}</span><p>${transferScenarios.baseline.situation}</p></article>
-          <label class="research-text-label">${transferScenarios.baseline.prompt}<textarea data-research-field="baseline" placeholder="没有标准句式，请写下你此刻真实会怎么判断。">${escapeHtml(researchDraft.baseline)}</textarea></label>
+          <label class="research-text-label"><span>写入行动备忘</span>${transferScenarios.baseline.prompt}<textarea data-research-field="baseline" placeholder="没有标准句式，请写下你此刻真实会怎么判断。">${escapeHtml(researchDraft.baseline)}</textarea></label>
           ${researchError ? `<p class="form-error">${escapeHtml(researchError)}</p>` : ""}
-          <div class="report-actions"><button class="ghost-button" data-command="close">暂不参加</button><button class="primary-button" data-command="save-baseline">保存基线并进入游戏 <i>→</i></button></div>
+          <div class="report-actions"><button class="ghost-button" data-command="close">暂不接受委托</button><button class="primary-button" data-command="save-baseline">封存判断，进入第1天 <i>→</i></button></div>
         </section>
       </div>`;
   }
@@ -476,37 +498,35 @@ function renderResearchModal() {
 
   if (research.post) {
     return `
-      <div class="modal-backdrop research-backdrop">
-        <section class="modal-card research-modal">
+      <div class="modal-backdrop research-backdrop dossier-backdrop">
+        <section class="modal-card research-modal dossier-card feedback-dossier">
           <button class="modal-close" data-command="close">×</button>
-          <div class="eyebrow">最后一步 · 体验反馈</div>
-          <h2>这套机制是否真的让你参与了判断？</h2>
-          <div class="comparison-grid"><article><span>游玩前主动纳入</span><strong>${research.baseline.score}/${research.baseline.total}</strong><div>${dimensionChips(research.baseline)}</div></article><article><span>陌生案例中主动纳入</span><strong>${research.post.score}/${research.post.total}</strong><div>${dimensionChips(research.post)}</div></article></div>
-          <div class="rating-grid">
-            <label>我感觉自己的理解改变了故事<select data-research-field="agency">${ratingOptions(researchDraft.agency)}</select></label>
-            <label>我能理解结果为什么发生<select data-research-field="clarity">${ratingOptions(researchDraft.clarity)}</select></label>
-            <label>我愿意继续体验下一案例<select data-research-field="engagement">${ratingOptions(researchDraft.engagement)}</select></label>
+          <div class="case-heading"><div class="case-seal">终</div><div><div class="eyebrow">旅程复盘 · 不公布标准答案</div><h2>林澈的人生暂时走到了这里，<br/>制作组需要你的真实观测</h2></div></div>
+          <div class="mission-brief"><span>最后一份委托</span><p>先留下感受，再查看系统识别到的因果维度。这样你的评价不会被结算界面提前提示。</p></div>
+          <div class="rating-grid game-rating-grid">
+            ${ratingChoices({ id: "agency", label: "我的理解确实改变了故事" }, researchDraft.agency, "只是旁观", "真正参与")}
+            ${ratingChoices({ id: "clarity", label: "我能理解主要结果为什么发生" }, researchDraft.clarity, "难以解释", "因果清楚")}
+            ${ratingChoices({ id: "engagement", label: "我愿意继续接下一个人生委托" }, researchDraft.engagement, "到此为止", "很想继续")}
           </div>
-          <label class="research-text-label compact">哪一刻最有用？<textarea data-research-field="useful">${escapeHtml(researchDraft.useful)}</textarea></label>
-          <label class="research-text-label compact">哪一处最困惑、无聊或像考试？<textarea data-research-field="confusing">${escapeHtml(researchDraft.confusing)}</textarea></label>
+          <label class="research-text-label compact"><span>高光记录</span>哪一刻最有用？<textarea data-research-field="useful" placeholder="请描述一个具体时刻。">${escapeHtml(researchDraft.useful)}</textarea></label>
+          <label class="research-text-label compact"><span>异常记录</span>哪一处最困惑、无聊或像考试？<textarea data-research-field="confusing" placeholder="越具体，越能帮助下一版改变。">${escapeHtml(researchDraft.confusing)}</textarea></label>
           ${researchError ? `<p class="form-error">${escapeHtml(researchError)}</p>` : ""}
-          <div class="report-actions"><button class="primary-button" data-command="save-feedback">完成测试记录 <i>→</i></button></div>
+          <div class="report-actions"><button class="primary-button" data-command="save-feedback">封存观测，查看终幕分析 <i>→</i></button></div>
         </section>
       </div>`;
   }
 
   if (state.challengeCompleted) {
     return `
-      <div class="modal-backdrop research-backdrop">
-        <section class="modal-card research-modal">
+      <div class="modal-backdrop research-backdrop dossier-backdrop">
+        <section class="modal-card research-modal dossier-card transfer-dossier">
           <button class="modal-close" data-command="close">×</button>
-          <div class="eyebrow">迁移测试 · 新人物、新行业</div>
-          <h2>刚才的方法能否用到陌生案例？</h2>
-          <p class="modal-intro">这一步不判断你有没有选择创业，只观察你会不会主动识别缺失认识、验证方法和风险边界。</p>
+          <div class="case-heading"><div class="case-seal">EX</div><div><div class="eyebrow">番外委托 · 新人物、新行业</div><h2>旧地图已经结束，<br/>方法能否带进陌生世界？</h2></div></div>
+          <div class="mission-brief"><span>独立任务</span><p>这次没有林澈，也没有上一局的资源。我们只观察你会不会主动寻找缺失认识、验证方法和风险边界。</p></div>
           <article class="transfer-case"><span>${transferScenarios.post.title}</span><p>${transferScenarios.post.situation}</p></article>
-          <label class="research-text-label">${transferScenarios.post.prompt}<textarea data-research-field="post" placeholder="请写得具体到可以执行的下一步。">${escapeHtml(researchDraft.post)}</textarea></label>
+          <label class="research-text-label"><span>提交行动方案</span>${transferScenarios.post.prompt}<textarea data-research-field="post" placeholder="请写得具体到可以执行的下一步。">${escapeHtml(researchDraft.post)}</textarea></label>
           ${researchError ? `<p class="form-error">${escapeHtml(researchError)}</p>` : ""}
-          <div class="report-actions"><button class="primary-button" data-command="save-post">分析我主动纳入的因果维度 <i>→</i></button></div>
+          <div class="report-actions"><button class="primary-button" data-command="save-post">提交给现实，等待终幕 <i>→</i></button></div>
         </section>
       </div>`;
   }
@@ -594,7 +614,8 @@ function renderChallengeModal() {
   const unlocked = new Set(unlockedKnowledgeIds(state));
   const knownNodes = knowledgeNodes.filter((node) => unlocked.has(node.id));
   return `
-    <div class="modal-backdrop challenge-backdrop">
+    <div class="modal-backdrop challenge-backdrop art-platform">
+      <div class="modal-scene-art" aria-hidden="true"></div>
       <section class="modal-card challenge-modal">
         <button class="modal-close" data-command="close">×</button>
         <div class="eyebrow">${worldChallenge.chapter}</div>
@@ -717,6 +738,8 @@ function render() {
   if (modal === "challenge-result" && state.challengeResult) app.insertAdjacentHTML("beforeend", renderChallengeResult());
   if (state.lastReport && modal === "report") app.insertAdjacentHTML("beforeend", renderReport());
   if (state.ended) app.insertAdjacentHTML("beforeend", renderEnding());
+  app.classList.remove("scene-enter");
+  requestAnimationFrame(() => app.classList.add("scene-enter"));
 }
 
 function download(filename, content) {
@@ -766,6 +789,7 @@ app.addEventListener("click", (event) => {
     const result = applyAction(state, actionButton.dataset.action);
     if (result.error) return;
     state = result.state;
+    playCue(state.lastReport?.refused ? "refusal" : "evidence");
     modal = "report";
     saveState();
     render();
@@ -777,6 +801,7 @@ app.addEventListener("click", (event) => {
     const id = hypothesisButton.dataset.selectHypothesis;
     const confidence = document.querySelector(`[data-confidence="${id}"]`)?.value ?? 45;
     state = setHypothesis(state, id, confidence);
+    playCue("choice");
     modal = null;
     saveState();
     render();
@@ -786,12 +811,21 @@ app.addEventListener("click", (event) => {
   const command = event.target.closest("[data-command]")?.dataset.command;
   if (!command) return;
 
+  if (command === "audio") {
+    toggleAudio().then(render);
+    return;
+  }
+
   if (command === "start") {
+    ensureAudio();
+    playCue("open");
     state.started = true;
     modal = null;
     saveState();
   }
   if (command === "test-start") {
+    ensureAudio();
+    playCue("open");
     state.started = true;
     researchError = "";
     modal = "research";
@@ -815,6 +849,7 @@ app.addEventListener("click", (event) => {
       modal = "research";
     } else {
       state = result.state;
+      playCue("evidence");
       researchError = "";
       modal = null;
       saveState();
@@ -826,6 +861,7 @@ app.addEventListener("click", (event) => {
       researchError = result.error;
     } else {
       state = result.state;
+      playCue("success");
       researchError = "";
       saveState();
     }
@@ -844,15 +880,18 @@ app.addEventListener("click", (event) => {
       researchError = result.error;
     } else {
       state = result.state;
+      playCue("success");
       researchError = "";
       saveState();
     }
     modal = "research";
   }
   if (command === "knowledge") {
+    playCue("open");
     modal = "knowledge";
   }
   if (command === "story") {
+    playCue("open");
     challengeError = "";
     storyChoice = "";
     modal = "story";
@@ -864,6 +903,7 @@ app.addEventListener("click", (event) => {
       modal = "story";
     } else {
       state = result.state;
+      playCue(state.story?.lastResult?.branch === "evidenceSupported" ? "success" : "caution");
       storyChoice = "";
       challengeError = "";
       modal = "story-result";
@@ -875,6 +915,7 @@ app.addEventListener("click", (event) => {
     saveState();
   }
   if (command === "challenge") {
+    playCue("caution");
     challengeError = "";
     modal = "challenge";
   }
@@ -888,6 +929,7 @@ app.addEventListener("click", (event) => {
       modal = "challenge";
     } else {
       state = result.state;
+      playCue(state.challengeResult?.tone === "success" ? "success" : "caution");
       challengeError = "";
       storyChoice = "";
       modal = "challenge-result";
@@ -912,6 +954,7 @@ app.addEventListener("click", (event) => {
     saveState();
   }
   if (command === "hypothesis" || command === "hypothesis-from-report") {
+    playCue("open");
     state.lastReport = null;
     modal = "hypothesis";
     saveState();

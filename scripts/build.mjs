@@ -16,6 +16,7 @@ await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 for (const file of files) await cp(join(projectRoot, file), join(outputDir, file));
 await cp(join(projectRoot, "js"), join(outputDir, "js"), { recursive: true });
+await cp(join(projectRoot, "assets"), join(outputDir, "assets"), { recursive: true });
 
 const repositoryUrl = String(process.env.PUBLIC_REPOSITORY_URL ?? "").replace(/\/$/, "");
 const issuesUrl = repositoryUrl ? `${repositoryUrl}/issues` : null;
@@ -51,7 +52,19 @@ for (const htmlFile of htmlFiles) {
   }
 }
 
-const runtimeFiles = ["site-config.js", ...files, ...htmlFiles, ...["app.js", "content.js", "engine.js", "research-analysis.js", "research-dashboard.js", "site-contact.js"].map((file) => `js/${file}`)];
+for (const cssFile of files) {
+  const css = await readFile(join(outputDir, cssFile), "utf8");
+  const references = [...css.matchAll(/url\(["']?([^"')]+)["']?\)/g)].map((match) => match[1]);
+  for (const reference of references) {
+    if (/^(?:data:|https?:|#)/.test(reference)) continue;
+    const localPath = reference.replace(/^\.\//, "");
+    await stat(join(outputDir, localPath)).catch(() => {
+      throw new Error(`${cssFile} references missing file: ${localPath}`);
+    });
+  }
+}
+
+const runtimeFiles = ["site-config.js", ...files, ...htmlFiles, ...["app.js", "audio.js", "content.js", "engine.js", "research-analysis.js", "research-dashboard.js", "site-contact.js"].map((file) => `js/${file}`)];
 for (const file of runtimeFiles) {
   const text = await readFile(join(outputDir, file), "utf8");
   if (/https?:\/\/(?:localhost|127\.0\.0\.1)/.test(text)) {
@@ -59,7 +72,7 @@ for (const file of runtimeFiles) {
   }
 }
 
-await writeFile(join(outputDir, "version.json"), `${JSON.stringify({ name: "在答案之前", version: "0.6.0", builtAt: new Date().toISOString(), entry: "index.html" }, null, 2)}\n`);
+await writeFile(join(outputDir, "version.json"), `${JSON.stringify({ name: "在答案之前", version: "0.7.0", builtAt: new Date().toISOString(), entry: "index.html" }, null, 2)}\n`);
 await writeFile(join(outputDir, "DEPLOY.txt"), "Upload every file in this directory to the root of any static web host. The root index.html is the playtest invitation; game.html is the game. No server runtime or database is required.\n");
 
 console.log(`Built ${outputDir}`);

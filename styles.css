@@ -390,3 +390,105 @@ button { color: inherit; }
   .protagonist-panel { grid-template-columns: auto 1fr 210px; }
   .active-belief { grid-column: 2 / -1; }
 }
+
+/* v0.7 · cinematic presentation layer */
+.scene-enter .modal-card,
+.scene-enter .story-stage,
+.scene-enter .protagonist-panel {
+  animation: scene-rise .42s cubic-bezier(.2,.72,.24,1) both;
+}
+
+@keyframes scene-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes objective-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229,185,104,.18); }
+  50% { box-shadow: 0 0 0 7px rgba(229,185,104,0); }
+}
+
+.audio-button.active { color: #d9f2e8; border-color: rgba(106,201,165,.38); background: rgba(106,201,165,.06); }
+.opening-audio { align-self: flex-start; margin-top: 11px; padding: 0; border: 0; background: none; color: #87a7b2; font-size: 9px; cursor: pointer; }
+.opening-audio:hover { color: var(--blue); }
+
+.opening-card { width: min(1180px, calc(100vw - 80px)); grid-template-columns: 58% 42%; min-height: 650px; }
+.opening-number {
+  isolation: isolate;
+  align-content: end;
+  justify-items: start;
+  padding: 0 48px 58px;
+  background:
+    linear-gradient(90deg, rgba(5,10,16,.1), rgba(5,10,16,.22) 55%, rgba(5,10,16,.88)),
+    linear-gradient(0deg, rgba(5,10,16,.88), transparent 58%),
+    url("./assets/art/campus-horizon-v1.jpg") center / cover no-repeat;
+}
+.opening-number::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(135deg, transparent 40%, rgba(112,201,220,.09)); }
+.opening-number::after { bottom: 68px; left: 164px; }
+.opening-number > span { line-height: .78; text-shadow: 0 8px 44px #000, 0 0 70px rgba(229,185,104,.22); }
+.opening-number > small { position: absolute; left: 51px; bottom: 26px; color: #a8bac2; font: 10px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .15em; }
+.opening-copy { position: relative; z-index: 1; padding: 66px 58px 48px; background: linear-gradient(115deg, rgba(11,18,28,.94), #0b121c 38%); }
+
+.story-stage { isolation: isolate; min-height: 450px; padding: 48px 46px 34px; background: #0d151f; }
+.stage-art { position: absolute; z-index: -3; inset: 0; background-position: center; background-size: cover; transition: opacity .5s ease, transform 6s ease; transform: scale(1.01); }
+.story-stage:hover .stage-art { transform: scale(1.035); }
+.story-stage.art-campus .stage-art { background-image: url("./assets/art/campus-horizon-v1.jpg"); }
+.story-stage.art-shop .stage-art { background-image: url("./assets/art/rainy-shop-v1.jpg"); }
+.story-stage.art-platform .stage-art { background-image: url("./assets/art/platform-dawn-v1.jpg"); }
+.story-stage::before { content: ""; position: absolute; z-index: -2; inset: 0; background: linear-gradient(90deg, rgba(6,11,18,.96) 0%, rgba(6,11,18,.76) 48%, rgba(6,11,18,.2) 100%), linear-gradient(0deg, rgba(5,10,16,.93), transparent 72%); }
+.story-stage::after { content: ""; position: absolute; z-index: -1; inset: 0; border: 1px solid rgba(255,255,255,.03); pointer-events: none; }
+.story-stage .stage-gradient { opacity: .55; }
+.story-stage h2 { max-width: 610px; margin-top: 74px; text-shadow: 0 3px 20px rgba(0,0,0,.7); }
+.story-stage > p { max-width: 640px; color: #d0dbe0; text-shadow: 0 2px 12px #000; }
+.story-stage .challenge-callout { backdrop-filter: blur(14px); background: rgba(3,8,13,.68); }
+.scene-foot { right: 34px; padding: 10px 13px; border: 1px solid rgba(255,255,255,.08); background: rgba(3,8,13,.56); backdrop-filter: blur(12px); }
+
+.mission-ribbon { position: absolute; z-index: 2; top: 24px; left: 38px; display: flex; align-items: center; gap: 11px; max-width: 620px; padding: 10px 14px; border-left: 2px solid var(--gold); background: rgba(5,10,16,.66); backdrop-filter: blur(12px); }
+.mission-ribbon > i { width: 8px; height: 8px; border: 1px solid var(--gold); border-radius: 50%; animation: objective-pulse 2.6s infinite; }
+.mission-ribbon > div { display: flex; flex-direction: column; gap: 3px; }
+.mission-ribbon span { color: var(--gold); font-size: 8px; letter-spacing: .14em; }
+.mission-ribbon strong { color: #dce5e8; font-size: 10px; font-weight: 500; }
+
+.modal-scene-art { position: fixed; inset: 0; opacity: .43; background-position: center; background-size: cover; filter: saturate(.8); }
+.modal-scene-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3,7,11,.96), rgba(3,7,11,.62) 55%, rgba(3,7,11,.76)), linear-gradient(0deg, rgba(3,7,11,.9), transparent 60%); }
+.art-shop .modal-scene-art { background-image: url("./assets/art/rainy-shop-v1.jpg"); }
+.art-platform .modal-scene-art { background-image: url("./assets/art/platform-dawn-v1.jpg"); }
+.story-modal, .challenge-modal { background: linear-gradient(145deg, rgba(14,22,32,.96), rgba(7,12,18,.94)); backdrop-filter: blur(18px); }
+
+.dossier-backdrop { background: radial-gradient(circle at 10% 0%, rgba(112,201,220,.13), transparent 30%), rgba(3,7,11,.94); }
+.dossier-card { width: min(1000px, calc(100vw - 60px)); padding: 38px 42px; overflow-x: hidden; background: linear-gradient(150deg, rgba(20,31,43,.98), rgba(8,14,21,.99)); }
+.dossier-card::before { content: "CASE FILE"; position: absolute; right: -24px; top: 128px; color: rgba(112,201,220,.035); font: 72px/1 Georgia, serif; letter-spacing: .08em; transform: rotate(90deg); pointer-events: none; }
+.case-heading { display: flex; align-items: center; gap: 20px; }
+.case-heading h2 { margin: 5px 0 0; font: 30px/1.3 Georgia, "Songti SC", serif; }
+.case-seal { flex: 0 0 auto; width: 66px; height: 66px; display: grid; place-items: center; border: 1px solid rgba(229,185,104,.46); color: var(--gold); font: 21px Georgia, serif; transform: rotate(45deg); box-shadow: 0 0 30px rgba(229,185,104,.06); }
+.case-seal + div { min-width: 0; }
+.mission-brief { display: grid; grid-template-columns: 110px 1fr; gap: 15px; margin: 22px 0 17px; padding: 14px 16px; border: 1px solid rgba(112,201,220,.16); background: linear-gradient(90deg, rgba(112,201,220,.07), rgba(112,201,220,.015)); }
+.mission-brief span { color: var(--blue); font-size: 9px; letter-spacing: .15em; }
+.mission-brief p { margin: 0; color: #b9c8ce; font-size: 10px; line-height: 1.65; }
+.research-profile label > span, .research-text-label > span { color: var(--gold); font-size: 9px; letter-spacing: .1em; }
+.transfer-case { position: relative; overflow: hidden; padding: 20px 22px; background: linear-gradient(110deg, rgba(229,185,104,.065), rgba(255,255,255,.012)); }
+.transfer-case::after { content: "委托"; position: absolute; right: 16px; bottom: -11px; color: rgba(229,185,104,.045); font: 58px Georgia, serif; }
+.research-text-label textarea { border-radius: 3px; background: rgba(2,6,10,.68); box-shadow: inset 0 8px 26px rgba(0,0,0,.18); }
+
+.game-rating-grid { grid-template-columns: repeat(3, 1fr); align-items: stretch; }
+.rating-choice { min-width: 0; margin: 0; padding: 15px; border: 1px solid var(--line); background: rgba(255,255,255,.018); }
+.rating-choice legend { min-height: 34px; padding: 0; color: #cad5da; font-size: 10px; line-height: 1.5; }
+.rating-choice > div { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 13px 0 8px; }
+.rating-choice label { display: block; cursor: pointer; }
+.rating-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.rating-choice label span { height: 34px; display: grid; place-items: center; border: 1px solid var(--line); color: var(--muted); font: 13px Georgia, serif; transition: .18s ease; }
+.rating-choice label:hover span { border-color: rgba(112,201,220,.45); color: var(--text); }
+.rating-choice label:has(input:checked) span { color: #0c151d; border-color: var(--gold); background: var(--gold); box-shadow: 0 0 16px rgba(229,185,104,.18); }
+.rating-choice > small { color: #687c88; font-size: 8px; }
+.rating-choice > small:last-child { float: right; }
+
+.action-card::after { content: ""; position: absolute; inset: auto 0 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(112,201,220,.45), transparent); transform: scaleX(0); transition: transform .2s ease; }
+.action-card:hover:not(:disabled)::after { transform: scaleX(1); }
+.action-card:active:not(:disabled), .primary-button:active { transform: translateY(1px) scale(.995); }
+.evidence-card { transition: transform .2s ease, background .2s ease; }
+.evidence-card:hover { transform: translateX(3px); background: rgba(112,201,220,.045); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  .story-stage:hover .stage-art { transform: none; }
+}

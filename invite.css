@@ -2,14 +2,16 @@
 .invite-nav { display: flex; align-items: center; }
 .invite-nav .brand { margin-right: auto; }
 .invite-nav > a, .invite-nav nav a { border: 1px solid var(--line); padding: 9px 13px; color: #b9c8cf; font-size: 9px; text-decoration: none; }
-.invite-hero { min-height: 570px; display: grid; grid-template-columns: 1.1fr .9fr; align-items: center; }
-.invite-copy { padding: 55px 20px 55px 35px; }
+.invite-hero { position: relative; isolation: isolate; min-height: 610px; display: grid; grid-template-columns: 1.1fr .9fr; align-items: center; margin: 22px 0 18px; overflow: hidden; border: 1px solid rgba(162,192,213,.12); box-shadow: 0 30px 90px rgba(0,0,0,.28); background: #0a111a; }
+.invite-hero::before { content: ""; position: absolute; z-index: -2; inset: 0; background: url("./assets/art/campus-horizon-v1.jpg") center / cover no-repeat; transform: scale(1.01); }
+.invite-hero::after { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgba(5,10,16,.98) 0%, rgba(5,10,16,.89) 42%, rgba(5,10,16,.38) 72%, rgba(5,10,16,.24)), linear-gradient(0deg, rgba(5,10,16,.72), transparent 55%); }
+.invite-copy { padding: 60px 20px 60px 44px; }
 .invite-copy h2 { margin: 14px 0 22px; font: 48px/1.3 Georgia, "Songti SC", serif; letter-spacing: .03em; }
-.invite-copy > p { max-width: 650px; color: #afbec7; font-size: 13px; line-height: 1.9; }
+.invite-copy > p { max-width: 650px; color: #c7d3d8; font-size: 13px; line-height: 1.9; text-shadow: 0 2px 14px #000; }
 .invite-actions { display: flex; gap: 9px; margin-top: 30px; }
 .invite-actions a { text-decoration: none; }
 .invite-copy > small { display: block; margin-top: 14px; color: #60737f; font-size: 9px; }
-.invite-orbit { position: relative; width: 390px; height: 390px; display: grid; place-items: center; justify-self: center; border: 1px solid rgba(112,201,220,.15); border-radius: 50%; box-shadow: inset 0 0 80px rgba(112,201,220,.04), 0 0 80px rgba(0,0,0,.25); }
+.invite-orbit { position: relative; width: 350px; height: 350px; display: grid; place-items: center; justify-self: center; border: 1px solid rgba(112,201,220,.25); border-radius: 50%; background: rgba(5,10,16,.34); box-shadow: inset 0 0 80px rgba(112,201,220,.05), 0 0 80px rgba(0,0,0,.38); backdrop-filter: blur(5px); }
 .invite-orbit::before, .invite-orbit::after { content: ""; position: absolute; inset: 52px; border: 1px solid rgba(229,185,104,.16); transform: rotate(45deg); }
 .invite-orbit::after { inset: 105px; border-color: rgba(112,201,220,.18); }
 .invite-orbit strong { color: var(--gold); font: 95px Georgia, serif; }
