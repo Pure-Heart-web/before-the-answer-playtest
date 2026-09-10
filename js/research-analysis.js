@@ -85,7 +85,7 @@ export function analyzeResearchRuns(records) {
         (sum, id) => sum + (evidenceCatalog[id]?.strength ?? 0),
         0,
       ),
-      freeActions: actionHistory.length,
+      freeActions: actionHistory.length + state.history.filter((item) => item.type === "shopInspect").length,
       rewinds: state.rewinds ?? 0,
       agency: Number(research.feedback.agency),
       clarity: Number(research.feedback.clarity),

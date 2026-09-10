@@ -5,6 +5,7 @@ import {
   evidenceCatalog,
   hypotheses,
   knowledgeNodes,
+  shopExplorationSpots,
   storyScenes,
   transferDimensions,
   worldChallenge,
@@ -43,6 +44,10 @@ export const INITIAL_STATE = {
     sceneIndex: 0,
     completed: [],
     lastResult: null,
+  },
+  shopExploration: {
+    visited: [],
+    completed: false,
   },
   relationships: {
     tangMan: 42,
@@ -113,6 +118,58 @@ function clampRelationship(value) {
   return Math.max(0, Math.min(100, value));
 }
 
+export function inspectShopSpot(state, spotId) {
+  const spot = shopExplorationSpots.find((item) => item.id === spotId);
+  if (!spot) return { state, error: "这个调查点不存在" };
+  if ((state.story?.sceneIndex ?? 0) !== 0) {
+    return { state, error: "第一幕已经结束，店内现场不再开放" };
+  }
+  const visited = state.shopExploration?.visited ?? [];
+  if (visited.includes(spotId)) return { state, error: "这个位置已经调查过" };
+  if (spot.requiresClue && visited.length === 0) {
+    return { state, error: "先找到一个具体痕迹，再用它请求店主停下来交谈" };
+  }
+  if (state.day + spot.days > state.maxDay + 1) {
+    return { state, error: "剩余时间不足以完成这次调查" };
+  }
+
+  const next = structuredClone(state);
+  next.shopExploration ??= { visited: [], completed: false };
+  next.relationships ??= Object.fromEntries(Object.keys(characters).map((id) => [id, 0]));
+  next.day += spot.days;
+  next.money = Math.max(0, next.money + spot.money);
+  next.energy = Math.max(0, Math.min(100, next.energy + spot.energy));
+  next.relationships.tangMan = clampRelationship(
+    (next.relationships.tangMan ?? 0) + (spot.relationship ?? 0),
+  );
+  next.shopExploration.visited.push(spot.id);
+  addEvidence(next, [spot.evidence]);
+  mergeNumbers(next.skills, { opportunity: 1, evidence: 1 });
+  next.history.push({
+    day: state.day,
+    type: "shopInspect",
+    spotId: spot.id,
+    days: spot.days,
+    evidence: spot.evidence,
+  });
+  triggerWorldEvents(next);
+  return { state: next, error: null, finding: spot };
+}
+
+export function finishShopExploration(state) {
+  const visited = state.shopExploration?.visited ?? [];
+  if (visited.length === 0) return { state, error: "至少带走一条线索，再进入谈话" };
+  const next = structuredClone(state);
+  next.shopExploration ??= { visited: [], completed: false };
+  next.shopExploration.completed = true;
+  next.history.push({
+    day: next.day,
+    type: "shopExplorationExit",
+    visited: [...visited],
+  });
+  return { state: next, error: null };
+}
+
 export function resolveStoryChoice(state, choiceId) {
   const scene = currentStoryScene(state);
   if (!scene) return { state, error: "当前没有可推进的剧情场景" };
@@ -122,13 +179,31 @@ export function resolveStoryChoice(state, choiceId) {
   const next = structuredClone(state);
   next.story ??= { sceneIndex: 0, completed: [], lastResult: null };
   next.relationships ??= Object.fromEntries(Object.keys(characters).map((id) => [id, 0]));
-  next.day += choice.days;
+  const visitedShopSpots = next.shopExploration?.visited ?? [];
+  const followedShopClue =
+    scene.id === "complimentAndLedger" &&
+    choice.id === "inspectPastLoss" &&
+    visitedShopSpots.some((id) => ["ledger", "messages"].includes(id));
+  const ignoredOwnerConstraint =
+    scene.id === "complimentAndLedger" &&
+    ["askPreference", "demoImmediately"].includes(choice.id) &&
+    visitedShopSpots.includes("owner");
+  const actualDays = followedShopClue ? Math.max(1, choice.days - 1) : choice.days;
+  next.day += actualDays;
   next.money = Math.max(0, next.money + choice.money);
   next.energy = Math.max(0, Math.min(100, next.energy + choice.energy));
   next.trust = Math.max(0, Math.min(100, next.trust + choice.trust));
   Object.entries(choice.relationships ?? {}).forEach(([id, delta]) => {
     next.relationships[id] = clampRelationship((next.relationships[id] ?? 0) + delta);
   });
+  if (followedShopClue) {
+    next.trust = Math.min(100, next.trust + 1);
+    next.relationships.tangMan = clampRelationship(next.relationships.tangMan + 2);
+  }
+  if (ignoredOwnerConstraint) {
+    next.trust = Math.max(0, next.trust - 2);
+    next.relationships.tangMan = clampRelationship(next.relationships.tangMan - 2);
+  }
   addEvidence(next, choice.evidence);
   Object.assign(next.flags, choice.flags ?? {});
   mergeNumbers(next.business, choice.business);
@@ -137,6 +212,21 @@ export function resolveStoryChoice(state, choiceId) {
   let result = choice.result;
   let extraMoney = 0;
   let branch = "authored";
+  if (followedShopClue) {
+    branch = "clueFollowed";
+    result = {
+      ...result,
+      title: "你沿着现场的断点追到了损失",
+      reality: "你从账本或未读消息中的具体空白问起，唐曼很快找出了完整记录；问题真实发生，但她还没有承诺购买。",
+      cause: "先观察再提问，让有限的谈话时间集中在一次已经发生的损失，而不是泛泛讨论AI。",
+    };
+  } else if (ignoredOwnerConstraint) {
+    branch = "ignoredSignal";
+    result = {
+      ...result,
+      cause: `${result.cause} 你还忽略了唐曼刚刚明确说出的时间与责任约束。`,
+    };
+  }
   if (choice.conditional === "storyDeposit") {
     next.flags.proposalReady = true;
     next.flags.privacyReady = true;
@@ -177,10 +267,11 @@ export function resolveStoryChoice(state, choiceId) {
     sceneChapter: scene.chapter,
     choiceId: choice.id,
     choiceTitle: choice.title,
-    days: choice.days,
+    days: actualDays,
     money: choice.money + extraMoney,
     trust: choice.trust,
     branch,
+    shopClues: [...visitedShopSpots],
     ...result,
   };
   next.history.push({
@@ -189,6 +280,7 @@ export function resolveStoryChoice(state, choiceId) {
     sceneId: scene.id,
     choiceId: choice.id,
     branch,
+    shopClues: [...visitedShopSpots],
   });
   return { state: next, error: null };
 }
@@ -300,7 +392,7 @@ export function researchMetrics(state) {
   const actionLookup = new Map(actions.map((action) => [action.id, action]));
   const explorationCount = actionHistory.filter(
     (item) => actionLookup.get(item.actionId)?.category === "探索",
-  ).length;
+  ).length + state.history.filter((item) => item.type === "shopInspect").length;
   const committedCount = actionHistory.filter((item) => {
     const action = actionLookup.get(item.actionId);
     return action?.category === "行动" || action?.category === "高风险";
@@ -775,7 +867,7 @@ export function endingSummary(state) {
 export function exportRun(state) {
   return JSON.stringify(
     {
-      version: "0.7.0",
+      version: "0.8.0",
       exportedAt: new Date().toISOString(),
       state,
       summary: endingSummary(state),

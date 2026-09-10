@@ -1,4 +1,4 @@
-# v0.7 GitHub Pages 发布说明
+# v0.8 GitHub Pages 发布说明
 
 ## 构建
 

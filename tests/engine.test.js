@@ -8,6 +8,8 @@ import {
   evidenceScore,
   evaluateUnderstanding,
   evaluateTransferResponse,
+  finishShopExploration,
+  inspectShopSpot,
   recordPostTransfer,
   recordResearchFeedback,
   researchMetrics,
@@ -196,6 +198,58 @@ test("the first story scene turns a concrete question into evidence and relation
   assert.equal(state.relationships.tangMan, beforeTang + 10);
   assert.equal(state.day, 3);
   assert.match(state.story.lastResult.cause, /过去行为/);
+});
+
+test("shop hotspots spend the same time pool and preserve uncertainty as evidence", () => {
+  const initial = createInitialState();
+  const result = inspectShopSpot(initial, "messages");
+  assert.equal(result.error, null);
+  assert.equal(result.state.day, 2);
+  assert.equal(result.state.energy, 72);
+  assert.ok(result.state.evidence.includes("shopMessages"));
+  assert.deepEqual(result.state.shopExploration.visited, ["messages"]);
+  assert.equal(result.state.history.at(-1).type, "shopInspect");
+});
+
+test("the owner requires a concrete clue and revisiting a hotspot is free of duplicate costs", () => {
+  let state = createInitialState();
+  let result = inspectShopSpot(state, "owner");
+  assert.match(result.error, /具体痕迹/);
+  assert.equal(result.state, state);
+
+  state = inspectShopSpot(state, "ledger").state;
+  const afterLedger = state;
+  result = inspectShopSpot(state, "ledger");
+  assert.match(result.error, /已经调查过/);
+  assert.equal(result.state, afterLedger);
+
+  result = inspectShopSpot(state, "owner");
+  assert.equal(result.error, null);
+  assert.equal(result.state.day, 4);
+  assert.ok(result.state.relationships.tangMan > afterLedger.relationships.tangMan);
+});
+
+test("players can stop shop exploration with incomplete information", () => {
+  let state = createInitialState();
+  assert.match(finishShopExploration(state).error, /至少/);
+  state = inspectShopSpot(state, "quotation").state;
+  const result = finishShopExploration(state);
+  assert.equal(result.error, null);
+  assert.equal(result.state.shopExploration.completed, true);
+  assert.deepEqual(result.state.shopExploration.visited, ["quotation"]);
+  assert.equal(result.state.day, 2);
+});
+
+test("following a relevant shop clue makes the first conversation faster", () => {
+  let state = createInitialState();
+  state = inspectShopSpot(state, "messages").state;
+  state = finishShopExploration(state).state;
+  const before = state;
+  const result = resolveStoryChoice(state, "inspectPastLoss");
+  assert.equal(result.error, null);
+  assert.equal(result.state.day, before.day + 1);
+  assert.equal(result.state.story.lastResult.branch, "clueFollowed");
+  assert.ok(result.state.story.lastResult.shopClues.includes("messages"));
 });
 
 test("a bounded offer becomes payment only when the earlier scene found a real loss", () => {

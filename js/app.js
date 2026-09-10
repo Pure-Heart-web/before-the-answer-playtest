@@ -6,6 +6,7 @@ import {
   knowledgeNodes,
   openingLines,
   protagonist,
+  shopExplorationSpots,
   storyScenes,
   transferDimensions,
   transferScenarios,
@@ -22,7 +23,9 @@ import {
   evidenceScore,
   evaluateTransferResponse,
   exportRun,
+  finishShopExploration,
   hypothesisEvidence,
+  inspectShopSpot,
   resolveWorldChallenge,
   rewindWorldChallenge,
   resolveStoryChoice,
@@ -47,6 +50,7 @@ let researchError = "";
 let challengeDraft = "";
 let challengeDirection = "";
 let storyChoice = "";
+let shopSpotId = state.shopExploration?.visited?.at(-1) ?? null;
 let researchDraft = {
   cohort: "大学生",
   experience: "没有实际创业经历",
@@ -93,6 +97,9 @@ function sceneArt() {
 
 function currentObjective() {
   const storyScene = currentStoryScene(state);
+  if (storyScene?.id === "complimentAndLedger" && !state.shopExploration?.completed) {
+    return "进入雨夜小店：观察环境，决定何时停止调查并开始谈话";
+  }
   if (storyScene) return `进入「${storyScene.title}」，决定怎样用时间换取认识`;
   if (state.challengeCompleted) return "接受这次世界反馈，决定是否把路线带入下一阶段";
   if (challengeAvailability(state).allowed) return "把已经形成的理解带入零价浪潮，选择下一步行动";
@@ -122,7 +129,7 @@ function renderHeader() {
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">答</div>
-        <div><p>创业认知剧情游戏 · v0.7</p><h1>在答案之前</h1></div>
+        <div><p>创业认知剧情游戏 · v0.8</p><h1>在答案之前</h1></div>
       </div>
       <div class="time-orbit" aria-label="剩余时间">
         <span>毕业倒计时</span><strong>${remaining}</strong><em>天</em>
@@ -189,7 +196,7 @@ function renderWorld() {
       }</p>
       <div class="challenge-callout ${(storyScene || challengeStatus.allowed) ? "ready" : ""}">
         <div><span>${storyScene ? storyScene.chapter : "第三幕 · 外部挑战"}</span><strong>${storyScene?.title ?? (state.challengeCompleted ? state.challengeResult?.title : "零价浪潮")}</strong><small>${storyScene ? `${storyScene.location} · 剧情选择会消耗同一个时间池` : state.challengeCompleted ? "你的认识已经改变了这条主线" : challengeStatus.reason}</small></div>
-        <button data-command="${storyScene ? "story" : state.challengeCompleted ? "challenge-result" : "challenge"}" ${!storyScene && !challengeStatus.allowed && !state.challengeCompleted ? "disabled" : ""}>${storyScene ? "进入当前剧情" : state.challengeCompleted ? "查看分支结果" : "带着当前理解进入"} <i>→</i></button>
+        <button data-command="${storyScene ? "story" : state.challengeCompleted ? "challenge-result" : "challenge"}" ${!storyScene && !challengeStatus.allowed && !state.challengeCompleted ? "disabled" : ""}>${storyScene?.id === "complimentAndLedger" && !state.shopExploration?.completed ? "进入店内调查" : storyScene ? "进入当前剧情" : state.challengeCompleted ? "查看分支结果" : "带着当前理解进入"} <i>→</i></button>
       </div>
       <div class="scene-foot">
         <span>现金 <strong>¥${state.money.toLocaleString("zh-CN")}</strong></span>
@@ -380,6 +387,51 @@ function renderOpening() {
     </div>`;
 }
 
+function renderShopExploration() {
+  const visited = state.shopExploration?.visited ?? [];
+  const selected = shopExplorationSpots.find((spot) => spot.id === shopSpotId);
+  const canTalkToOwner = visited.length > 0;
+  return `
+    <div class="modal-backdrop shop-explore-backdrop">
+      <section class="shop-explore-shell">
+        <header class="shop-explore-header">
+          <div><div class="eyebrow">第一幕 · 可调查场景</div><h2>青禾培训工作室</h2><p>你不需要查完所有位置。每一次调查都会消耗毕业前的时间。</p></div>
+          <div class="shop-clock"><span>当前</span><strong>DAY ${String(state.day).padStart(2, "0")}</strong><small>已调查 ${visited.length}/${shopExplorationSpots.length}</small></div>
+        </header>
+        <div class="shop-explore-layout">
+          <div class="shop-scene" aria-label="雨夜小店可调查场景">
+            <div class="shop-scene-shade"></div>
+            <div class="shop-scene-caption"><span>雨声盖住了门外的喧闹</span><strong>点击发光标记调查</strong></div>
+            ${shopExplorationSpots.map((spot, index) => {
+              const seen = visited.includes(spot.id);
+              const locked = spot.requiresClue && !canTalkToOwner;
+              return `<button class="shop-hotspot ${seen ? "seen" : ""} ${shopSpotId === spot.id ? "selected" : ""} ${locked ? "locked" : ""}" style="--x:${spot.x}%;--y:${spot.y}%" data-shop-spot="${spot.id}" aria-label="${spot.label}" ${locked ? `title="先调查一处具体痕迹"` : ""}><i>${seen ? "✓" : index + 1}</i><span>${spot.label}</span><small>${seen ? "已记录" : `${spot.days}天`}</small></button>`;
+            }).join("")}
+          </div>
+          <aside class="shop-finding">
+            ${selected && visited.includes(selected.id) ? `
+              <div class="finding-index">线索 ${String(visited.indexOf(selected.id) + 1).padStart(2, "0")}</div>
+              <div class="eyebrow">${selected.label} · 已支付 ${selected.days} 天</div>
+              <h3>${selected.prompt}</h3>
+              <blockquote>“${selected.quote}”<small>林澈</small></blockquote>
+              <div class="finding-chain">
+                <article><span>看见了什么</span><p>${selected.observation}</p></article>
+                <article class="inference"><span>现在可以推测</span><p>${selected.inference}</p></article>
+                <article class="unknown"><span>仍然无法确定</span><p>${selected.unknown}</p></article>
+              </div>` : `
+              <div class="finding-empty"><i>?</i><div class="eyebrow">现场没有自动答案</div><h3>先选一个值得花时间的痕迹</h3><p>发光点不是收集品。你要判断哪条信息最可能改变下一步行动。</p></div>`}
+            ${challengeError ? `<p class="form-error">${escapeHtml(challengeError)}</p>` : ""}
+          </aside>
+        </div>
+        <footer class="shop-explore-footer">
+          <button class="ghost-button" data-command="close">先离开，保留现场</button>
+          <p>${visited.length ? `你已经带走 ${visited.length} 条不完整线索。继续查会更稳，也会更晚。` : "至少调查一处，才能用具体事实开始谈话。"}</p>
+          <button class="primary-button" data-command="finish-shop" ${visited.length === 0 ? "disabled" : ""}>停止调查，进入谈话 <i>→</i></button>
+        </footer>
+      </section>
+    </div>`;
+}
+
 function renderStoryModal() {
   const scene = currentStoryScene(state);
   if (!scene) return "";
@@ -392,6 +444,7 @@ function renderStoryModal() {
         <div class="eyebrow">${scene.location}</div>
         <h2>${scene.title}</h2>
         <p class="story-context">${scene.context}</p>
+        ${scene.id === "complimentAndLedger" && (state.shopExploration?.visited?.length ?? 0) > 0 ? `<div class="story-clue-strip"><span>你从现场带来的线索</span>${state.shopExploration.visited.map((id) => `<button data-command="shop-explore">${shopExplorationSpots.find((spot) => spot.id === id)?.label ?? id}</button>`).join("")}<small>线索会改变提问效率，但不会替你证明结论。</small></div>` : ""}
         <div class="scene-cast">
           ${scene.cast.map((id) => {
             const person = characters[id];
@@ -406,13 +459,13 @@ function renderStoryModal() {
           ${scene.choices.map((choice) => `
             <label class="story-choice-card">
               <input type="radio" name="story-choice" value="${choice.id}" ${storyChoice === choice.id ? "checked" : ""}/>
-              <span>${choice.days}天</span><strong>${choice.title}</strong><small>${choice.description}</small>
+              <span>${scene.id === "complimentAndLedger" && choice.id === "inspectPastLoss" && (state.shopExploration?.visited ?? []).some((id) => ["ledger", "messages"].includes(id)) ? `${Math.max(1, choice.days - 1)}天 · 线索加速` : `${choice.days}天`}</span><strong>${choice.title}</strong><small>${choice.description}</small>
               <em>${choice.money >= 0 ? "+" : "−"}¥${Math.abs(choice.money)} · 精力 ${choice.energy >= 0 ? "+" : ""}${choice.energy}</em>
             </label>`).join("")}
         </div>
         ${challengeError ? `<p class="form-error">${escapeHtml(challengeError)}</p>` : ""}
         <div class="report-actions">
-          <button class="ghost-button" data-command="close">先离开，去自由探索</button>
+          <button class="ghost-button" data-command="${scene.id === "complimentAndLedger" ? "shop-explore" : "close"}">${scene.id === "complimentAndLedger" ? "回到店内补查" : "先离开，去自由探索"}</button>
           <button class="primary-button" data-command="resolve-story">让选择进入现实 <i>→</i></button>
         </div>
       </section>
@@ -729,6 +782,7 @@ function renderEnding() {
 function render() {
   app.innerHTML = renderMain();
   if (modal === "opening") app.insertAdjacentHTML("beforeend", renderOpening());
+  if (modal === "shop-explore") app.insertAdjacentHTML("beforeend", renderShopExploration());
   if (modal === "story") app.insertAdjacentHTML("beforeend", renderStoryModal());
   if (modal === "story-result") app.insertAdjacentHTML("beforeend", renderStoryResult());
   if (modal === "research") app.insertAdjacentHTML("beforeend", renderResearchModal());
@@ -804,6 +858,29 @@ app.addEventListener("click", (event) => {
     playCue("choice");
     modal = null;
     saveState();
+    render();
+    return;
+  }
+
+  const shopSpotButton = event.target.closest("[data-shop-spot]");
+  if (shopSpotButton) {
+    const id = shopSpotButton.dataset.shopSpot;
+    const visited = state.shopExploration?.visited ?? [];
+    if (visited.includes(id)) {
+      shopSpotId = id;
+      challengeError = "";
+    } else {
+      const result = inspectShopSpot(state, id);
+      if (result.error) {
+        challengeError = result.error;
+      } else {
+        state = result.state;
+        shopSpotId = id;
+        challengeError = "";
+        playCue(id === "owner" ? "choice" : "evidence");
+        saveState();
+      }
+    }
     render();
     return;
   }
@@ -894,7 +971,28 @@ app.addEventListener("click", (event) => {
     playCue("open");
     challengeError = "";
     storyChoice = "";
-    modal = "story";
+    modal = currentStoryScene(state)?.id === "complimentAndLedger" && !state.shopExploration?.completed
+      ? "shop-explore"
+      : "story";
+  }
+  if (command === "shop-explore") {
+    playCue("open");
+    challengeError = "";
+    shopSpotId = state.shopExploration?.visited?.at(-1) ?? null;
+    modal = "shop-explore";
+  }
+  if (command === "finish-shop") {
+    const result = finishShopExploration(state);
+    if (result.error) {
+      challengeError = result.error;
+      modal = "shop-explore";
+    } else {
+      state = result.state;
+      challengeError = "";
+      playCue("choice");
+      modal = "story";
+      saveState();
+    }
   }
   if (command === "resolve-story") {
     const result = resolveStoryChoice(state, storyChoice);
@@ -905,6 +1003,7 @@ app.addEventListener("click", (event) => {
       state = result.state;
       playCue(state.story?.lastResult?.branch === "evidenceSupported" ? "success" : "caution");
       storyChoice = "";
+      shopSpotId = null;
       challengeError = "";
       modal = "story-result";
       saveState();
