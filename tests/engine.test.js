@@ -319,13 +319,19 @@ test("a research session preserves baseline, post-transfer, and feedback separat
   result = recordResearchFeedback(state, {
     agency: 4,
     clarity: 5,
+    exploration: 4,
+    timePressure: 3,
+    autonomy: 5,
     engagement: 4,
+    decisiveClue: "messages",
+    stopReason: "enough",
     useful: "定金失败会解释缺失证据。",
     confusing: "部分文字有点多。",
     completedAt: "2026-09-09T00:30:00.000Z",
   });
   assert.equal(result.error, null);
   assert.equal(result.state.research.feedback.clarity, 5);
+  assert.equal(result.state.research.feedback.decisiveClue, "messages");
   assert.equal(result.state.research.completedAt, "2026-09-09T00:30:00.000Z");
 });
 
@@ -357,7 +363,11 @@ function completedResearchRecord(id, baselineIds, postIds, branch = "可靠流�
         profile: { cohort: "大学生", experience: "没有实际创业经历" },
         baseline: { score: baselineIds.length, total: 7, dimensionIds: baselineIds },
         post: { score: postIds.length, total: 7, dimensionIds: postIds },
-        feedback: { agency: 4, clarity: 5, engagement: 4, useful: "因果清楚", confusing: "文字较多" },
+        feedback: {
+          agency: 4, clarity: 5, exploration: 4, timePressure: 3, autonomy: 4,
+          engagement: 4, decisiveClue: "messages", stopReason: "enough",
+          useful: "因果清楚", confusing: "文字较多",
+        },
       },
     },
   };
@@ -382,6 +392,19 @@ test("research dashboard aggregates dimension change, branches, and ratings", ()
   assert.equal(analysis.branchCounts["可靠流程"], 1);
   assert.equal(analysis.branchCounts["有效试点"], 1);
   assert.equal(analysis.dimensionStats.find((item) => item.id === "reality").post, 2);
+  assert.equal(analysis.averages.exploration, 4);
+  assert.equal(analysis.stopReasonCounts["信息足够行动"], 2);
+  assert.equal(analysis.decisiveClueCounts["工作手机"], 2);
+});
+
+test("player feedback requires both mechanism ratings and a recalled stopping decision", () => {
+  const state = completedResearchRecord("T-feedback", ["reality"], ["reality", "payment"]).state;
+  state.research.feedback = null;
+  const incomplete = recordResearchFeedback(state, {
+    agency: 4, clarity: 4, exploration: 4, timePressure: 4, autonomy: 4, engagement: 4,
+    decisiveClue: "", stopReason: "", confusing: "暂时没有问题",
+  });
+  assert.match(incomplete.error, /线索和停止调查/);
 });
 
 test("aggregate CSV safely quotes qualitative feedback", () => {

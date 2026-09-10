@@ -58,7 +58,12 @@ let researchDraft = {
   post: "",
   agency: "",
   clarity: "",
+  exploration: "",
+  timePressure: "",
+  autonomy: "",
   engagement: "",
+  decisiveClue: "",
+  stopReason: "",
   useful: "",
   confusing: "",
 };
@@ -114,6 +119,16 @@ function ratingChoices(field, selected, low, high) {
     .join("")}</div><small>${high}</small></fieldset>`;
 }
 
+function surveyChoices(field, options, selected) {
+  return `
+    <fieldset class="survey-choice-group">
+      <legend>${field}</legend>
+      <div class="survey-choice-grid">
+        ${options.map((option) => `<label class="survey-choice-card"><input type="radio" name="survey-${option.field}" value="${option.value}" data-research-field="${option.field}" ${selected === option.value ? "checked" : ""}/><span>${option.label}</span></label>`).join("")}
+      </div>
+    </fieldset>`;
+}
+
 function meter(label, value, max, tone = "blue") {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return `
@@ -129,7 +144,7 @@ function renderHeader() {
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">答</div>
-        <div><p>创业认知剧情游戏 · v0.8</p><h1>在答案之前</h1></div>
+        <div><p>创业认知剧情游戏 · v0.8.1</p><h1>在答案之前</h1></div>
       </div>
       <div class="time-orbit" aria-label="剩余时间">
         <span>毕业倒计时</span><strong>${remaining}</strong><em>天</em>
@@ -550,19 +565,52 @@ function renderResearchModal() {
   }
 
   if (research.post) {
+    const visitedClues = state.shopExploration?.visited ?? [];
+    const clueChoices = [
+      ...visitedClues.map((id) => ({
+        field: "decisiveClue",
+        value: id,
+        label: shopExplorationSpots.find((spot) => spot.id === id)?.label ?? id,
+      })),
+      { field: "decisiveClue", value: "none", label: "没有一条具体线索" },
+    ];
+    const stopChoices = [
+      { field: "stopReason", value: "enough", label: "信息已经够我行动" },
+      { field: "stopReason", value: "cost", label: "继续调查不值得时间" },
+      { field: "stopReason", value: "plot", label: "想尽快看到剧情结果" },
+      { field: "stopReason", value: "complete", label: "我把能点的都查完了" },
+      { field: "stopReason", value: "unclear", label: "当时没意识到可以继续" },
+      { field: "stopReason", value: "other", label: "其他或说不清" },
+    ];
     return `
       <div class="modal-backdrop research-backdrop dossier-backdrop">
         <section class="modal-card research-modal dossier-card feedback-dossier">
           <button class="modal-close" data-command="close">×</button>
           <div class="case-heading"><div class="case-seal">终</div><div><div class="eyebrow">旅程复盘 · 不公布标准答案</div><h2>林澈的人生暂时走到了这里，<br/>制作组需要你的真实观测</h2></div></div>
-          <div class="mission-brief"><span>最后一份委托</span><p>先留下感受，再查看系统识别到的因果维度。这样你的评价不会被结算界面提前提示。</p></div>
-          <div class="rating-grid game-rating-grid">
-            ${ratingChoices({ id: "agency", label: "我的理解确实改变了故事" }, researchDraft.agency, "只是旁观", "真正参与")}
-            ${ratingChoices({ id: "clarity", label: "我能理解主要结果为什么发生" }, researchDraft.clarity, "难以解释", "因果清楚")}
-            ${ratingChoices({ id: "engagement", label: "我愿意继续接下一个人生委托" }, researchDraft.engagement, "到此为止", "很想继续")}
-          </div>
-          <label class="research-text-label compact"><span>高光记录</span>哪一刻最有用？<textarea data-research-field="useful" placeholder="请描述一个具体时刻。">${escapeHtml(researchDraft.useful)}</textarea></label>
-          <label class="research-text-label compact"><span>异常记录</span>哪一处最困惑、无聊或像考试？<textarea data-research-field="confusing" placeholder="越具体，越能帮助下一版改变。">${escapeHtml(researchDraft.confusing)}</textarea></label>
+          <div class="mission-brief"><span>约 2 分钟</span><p>请按当时真实感受回答。这里没有“理解正确”的奖励；先留下体验，再查看系统识别到的因果维度。</p></div>
+          <section class="survey-section">
+            <div class="survey-section-heading"><span>01 · 还原你的调查决定</span><small>用于判断探索是否产生了真实取舍</small></div>
+            <div class="survey-recall-grid">
+              ${surveyChoices("哪条现场线索最影响你后来的判断？", clueChoices, researchDraft.decisiveClue)}
+              ${surveyChoices("你为什么在那个位置停止小店调查？", stopChoices, researchDraft.stopReason)}
+            </div>
+          </section>
+          <section class="survey-section">
+            <div class="survey-section-heading"><span>02 · 评价实际体验</span><small>1代表左侧描述，5代表右侧描述</small></div>
+            <div class="rating-grid game-rating-grid">
+              ${ratingChoices({ id: "agency", label: "我的理解确实改变了故事" }, researchDraft.agency, "只是旁观", "真正参与")}
+              ${ratingChoices({ id: "clarity", label: "我能理解主要结果为什么发生" }, researchDraft.clarity, "难以解释", "因果清楚")}
+              ${ratingChoices({ id: "exploration", label: "调查小店时，我在主动寻找信息" }, researchDraft.exploration, "像点任务按钮", "像调查现场")}
+              ${ratingChoices({ id: "timePressure", label: "时间代价影响了我是否继续调查" }, researchDraft.timePressure, "没有影响", "明显影响")}
+              ${ratingChoices({ id: "autonomy", label: "林澈像一个有自己判断的人" }, researchDraft.autonomy, "只是执行按钮", "有自己的边界")}
+              ${ratingChoices({ id: "engagement", label: "我愿意继续接下一个人生委托" }, researchDraft.engagement, "到此为止", "很想继续")}
+            </div>
+          </section>
+          <section class="survey-section">
+            <div class="survey-section-heading"><span>03 · 留下具体证据</span><small>一句具体描述比笼统好评更有用</small></div>
+            <label class="research-text-label compact"><span>高光记录</span>哪一刻最影响了你的判断？<textarea data-research-field="useful" placeholder="例如：看到未读消息后，我改变了准备直接演示的想法。">${escapeHtml(researchDraft.useful)}</textarea></label>
+            <label class="research-text-label compact"><span>异常记录</span>哪一处最困惑、无聊或像考试？<textarea data-research-field="confusing" placeholder="越具体，越能帮助下一版改变。">${escapeHtml(researchDraft.confusing)}</textarea></label>
+          </section>
           ${researchError ? `<p class="form-error">${escapeHtml(researchError)}</p>` : ""}
           <div class="report-actions"><button class="primary-button" data-command="save-feedback">封存观测，查看终幕分析 <i>→</i></button></div>
         </section>
@@ -948,7 +996,12 @@ app.addEventListener("click", (event) => {
     const result = recordResearchFeedback(state, {
       agency: researchDraft.agency,
       clarity: researchDraft.clarity,
+      exploration: researchDraft.exploration,
+      timePressure: researchDraft.timePressure,
+      autonomy: researchDraft.autonomy,
       engagement: researchDraft.engagement,
+      decisiveClue: researchDraft.decisiveClue,
+      stopReason: researchDraft.stopReason,
       useful: researchDraft.useful,
       confusing: researchDraft.confusing,
       completedAt: new Date().toISOString(),
@@ -1083,7 +1136,8 @@ app.addEventListener("click", (event) => {
       researchError = "";
       researchDraft = {
         cohort: "大学生", experience: "没有实际创业经历", baseline: "", post: "",
-        agency: "", clarity: "", engagement: "", useful: "", confusing: "",
+        agency: "", clarity: "", exploration: "", timePressure: "", autonomy: "", engagement: "",
+        decisiveClue: "", stopReason: "", useful: "", confusing: "",
       };
       localStorage.removeItem(STORAGE_KEY);
     }

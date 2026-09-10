@@ -72,7 +72,7 @@ for (const file of runtimeFiles) {
   }
 }
 
-await writeFile(join(outputDir, "version.json"), `${JSON.stringify({ name: "在答案之前", version: "0.8.0", builtAt: new Date().toISOString(), entry: "index.html" }, null, 2)}\n`);
+await writeFile(join(outputDir, "version.json"), `${JSON.stringify({ name: "在答案之前", version: "0.8.1", builtAt: new Date().toISOString(), entry: "index.html" }, null, 2)}\n`);
 await writeFile(join(outputDir, "DEPLOY.txt"), "Upload every file in this directory to the root of any static web host. The root index.html is the playtest invitation; game.html is the game. No server runtime or database is required.\n");
 
 console.log(`Built ${outputDir}`);

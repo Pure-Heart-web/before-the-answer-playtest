@@ -22,6 +22,15 @@
 .summary-grid span { color: var(--muted); font-size: 9px; letter-spacing: .1em; }
 .summary-grid strong { display: block; margin: 11px 0 8px; color: var(--gold); font: 30px Georgia, serif; }
 .summary-grid small { color: #738590; font-size: 8px; }
+.experience-panel { margin-top: 12px; }
+.experience-score-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 18px; }
+.experience-score-grid article { min-width: 0; padding: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.014); }
+.experience-score-grid span { color: #aebec5; font-size: 8px; }
+.experience-score-grid strong { display: block; margin: 8px 0; color: var(--gold); font: 21px Georgia, serif; }
+.experience-score-grid article > div { height: 3px; background: rgba(255,255,255,.05); }
+.experience-score-grid article > div i { display: block; height: 100%; background: var(--green); }
+.experience-score-grid small { display: flex; justify-content: space-between; margin-top: 6px; color: #667985; font-size: 7px; }
+.experience-score-grid small em { font-style: normal; }
 .analysis-two-column, .feedback-columns { display: grid; grid-template-columns: 1.25fr .75fr; gap: 12px; margin-top: 12px; }
 .analysis-panel { padding: 23px; }
 .analysis-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
@@ -45,6 +54,9 @@
 .branch-list i { display: block; height: 100%; background: var(--gold); }
 .branch-list strong { color: var(--gold); font: 13px Georgia, serif; text-align: right; }
 .analysis-note { margin-top: 24px; padding: 12px; border-left: 2px solid var(--blue); background: rgba(112,201,220,.04); color: var(--muted); font-size: 8px; line-height: 1.55; }
+.behavior-panels { grid-template-columns: 1fr 1fr; }
+.behavior-list article { grid-template-columns: 150px 1fr 20px; }
+.clue-list i { background: var(--green); }
 .runs-panel { margin-top: 12px; }
 .runs-table { overflow: auto; margin-top: 18px; }
 .runs-table table { width: 100%; border-collapse: collapse; }

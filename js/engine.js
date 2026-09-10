@@ -367,9 +367,19 @@ export function recordPostTransfer(state, text) {
 
 export function recordResearchFeedback(state, feedback) {
   if (!state.research?.post) return { state, error: "请先完成迁移案例" };
-  const ratings = [feedback.agency, feedback.clarity, feedback.engagement].map(Number);
+  const ratings = [
+    feedback.agency,
+    feedback.clarity,
+    feedback.exploration,
+    feedback.timePressure,
+    feedback.autonomy,
+    feedback.engagement,
+  ].map(Number);
   if (ratings.some((rating) => rating < 1 || rating > 5 || !Number.isFinite(rating))) {
-    return { state, error: "请完成三项1—5分体验评价" };
+    return { state, error: "请完成六项1—5分体验评价" };
+  }
+  if (!String(feedback.decisiveClue ?? "").trim() || !String(feedback.stopReason ?? "").trim()) {
+    return { state, error: "请选择最影响判断的线索和停止调查的原因" };
   }
   if (String(feedback.confusing ?? "").trim().length < 4) {
     return { state, error: "请写下一处最困惑或最想修改的地方" };
@@ -378,7 +388,12 @@ export function recordResearchFeedback(state, feedback) {
   next.research.feedback = {
     agency: ratings[0],
     clarity: ratings[1],
-    engagement: ratings[2],
+    exploration: ratings[2],
+    timePressure: ratings[3],
+    autonomy: ratings[4],
+    engagement: ratings[5],
+    decisiveClue: String(feedback.decisiveClue).trim(),
+    stopReason: String(feedback.stopReason).trim(),
     useful: String(feedback.useful ?? "").trim(),
     confusing: String(feedback.confusing ?? "").trim(),
   };
@@ -867,7 +882,7 @@ export function endingSummary(state) {
 export function exportRun(state) {
   return JSON.stringify(
     {
-      version: "0.8.0",
+      version: "0.8.1",
       exportedAt: new Date().toISOString(),
       state,
       summary: endingSummary(state),

@@ -16,7 +16,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function demoRecord({ id, cohort, baseline, post, route, branch, rewinds, ratings, useful, confusing }) {
+function demoRecord({ id, cohort, baseline, post, route, branch, rewinds, ratings, decisiveClue, stopReason, useful, confusing }) {
   return {
     version: "0.5.0-demo",
     state: {
@@ -24,6 +24,8 @@ function demoRecord({ id, cohort, baseline, post, route, branch, rewinds, rating
       rewinds,
       challengeResult: { title: branch },
       history: [
+        { type: "shopInspect", spotId: "messages" },
+        ...(decisiveClue === "owner" ? [{ type: "shopInspect", spotId: "owner" }] : []),
         { type: "storyScene", choiceId: route.includes("检查损失") ? "inspectPastLoss" : "askPreference" },
         { type: "storyScene", choiceId: route.includes("边界定金") ? "boundedDeposit" : "freeEverything" },
       ],
@@ -33,7 +35,11 @@ function demoRecord({ id, cohort, baseline, post, route, branch, rewinds, rating
         profile: { cohort, experience: cohort === "大学生" ? "没有实际创业经历" : "做过副业或小项目" },
         baseline: { score: baseline.length, total: 7, dimensionIds: baseline },
         post: { score: post.length, total: 7, dimensionIds: post },
-        feedback: { agency: ratings[0], clarity: ratings[1], engagement: ratings[2], useful, confusing },
+        feedback: {
+          agency: ratings[0], clarity: ratings[1], exploration: ratings[2],
+          timePressure: ratings[3], autonomy: ratings[4], engagement: ratings[5],
+          decisiveClue, stopReason, useful, confusing,
+        },
       },
     },
   };
@@ -43,19 +49,19 @@ const demoRecords = [
   demoRecord({
     id: "DEMO-A01", cohort: "大学生", baseline: ["stopping"],
     post: ["reality", "payment", "experiment", "economics", "risk", "alternatives", "stopping"],
-    route: "检查损失 → 边界定金", branch: "可靠流程", rewinds: 0, ratings: [5, 5, 4],
+    route: "检查损失 → 边界定金", branch: "可靠流程", rewinds: 0, ratings: [5, 5, 5, 4, 4, 4], decisiveClue: "messages", stopReason: "enough",
     useful: "看到前一幕的账本证据直接改变定金结果。", confusing: "认知云图一开始不知道能不能点击。",
   }),
   demoRecord({
     id: "DEMO-B02", cohort: "在职员工", baseline: ["payment", "alternatives"],
     post: ["reality", "payment", "experiment", "economics", "alternatives", "stopping"],
-    route: "询问偏好 → 免费全包", branch: "有效试点", rewinds: 1, ratings: [4, 4, 4],
+    route: "询问偏好 → 免费全包", branch: "有效试点", rewinds: 1, ratings: [4, 4, 3, 2, 4, 4], decisiveClue: "none", stopReason: "plot",
     useful: "免费试点能学到交付，但不能证明付款。", confusing: "部分结果页一次出现的信息太多。",
   }),
   demoRecord({
     id: "DEMO-C03", cohort: "离职或待业", baseline: ["experiment", "economics", "risk"],
     post: ["reality", "payment", "experiment", "economics", "risk", "stopping"],
-    route: "检查损失 → 免费全包", branch: "巨构空转", rewinds: 1, ratings: [3, 5, 3],
+    route: "检查损失 → 免费全包", branch: "巨构空转", rewinds: 1, ratings: [3, 5, 4, 5, 3, 3], decisiveClue: "owner", stopReason: "cost",
     useful: "失败说明了为什么错，不只是让我换选项。", confusing: "想看到退出路线更长远的后续。",
   }),
 ];
@@ -77,6 +83,18 @@ function barRow(stat, participants) {
     </article>`;
 }
 
+function distributionList(counts, total) {
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => `<article><span>${escapeHtml(label)}</span><div><i style="width:${Math.round(count / total * 100)}%"></i></div><strong>${count}</strong></article>`)
+    .join("");
+}
+
+function scoreCard(label, value, low, high) {
+  const numeric = Number.isFinite(value) ? value : 0;
+  return `<article><span>${label}</span><strong>${value ?? "—"}</strong><div><i style="width:${numeric / 5 * 100}%"></i></div><small>${low}<em>${high}</em></small></article>`;
+}
+
 function renderAnalysis() {
   if (!records.length) return emptyView();
   const analysis = analyzeResearchRuns(records);
@@ -90,8 +108,19 @@ function renderAnalysis() {
     <section class="summary-grid">
       <article class="panel"><span>完成测试者</span><strong>${analysis.participants}</strong><small>导入 ${analysis.imported} 份</small></article>
       <article class="panel"><span>平均新增维度</span><strong>${analysis.averages.delta >= 0 ? "+" : ""}${analysis.averages.delta}</strong><small>前 ${analysis.averages.baseline} → 后 ${analysis.averages.post}</small></article>
-      <article class="panel"><span>主观能动性</span><strong>${analysis.averages.agency}</strong><small>满分5 · 仅作体验指标</small></article>
-      <article class="panel"><span>因果清晰度</span><strong>${analysis.averages.clarity}</strong><small>继续意愿 ${analysis.averages.engagement}/5</small></article>
+      <article class="panel"><span>主动探索感</span><strong>${analysis.averages.exploration ?? "—"}</strong><small>时间代价 ${analysis.averages.timePressure ?? "—"}/5</small></article>
+      <article class="panel"><span>主观能动性</span><strong>${analysis.averages.agency}</strong><small>主角自主 ${analysis.averages.autonomy ?? "—"}/5</small></article>
+    </section>
+    <section class="panel analysis-panel experience-panel">
+      <div class="analysis-heading"><div><div class="eyebrow">体验诊断 · 满分5</div><h2>六项指标分别回答不同问题</h2></div></div>
+      <div class="experience-score-grid">
+        ${scoreCard("理解改变故事", analysis.averages.agency, "旁观", "参与")}
+        ${scoreCard("结果因果清晰", analysis.averages.clarity, "难解释", "清楚")}
+        ${scoreCard("主动调查感", analysis.averages.exploration, "点按钮", "查现场")}
+        ${scoreCard("时间代价有效", analysis.averages.timePressure, "无影响", "影响大")}
+        ${scoreCard("主角自主可信", analysis.averages.autonomy, "工具人", "有边界")}
+        ${scoreCard("继续体验意愿", analysis.averages.engagement, "停止", "继续")}
+      </div>
     </section>
     <div class="analysis-two-column">
       <section class="panel analysis-panel">
@@ -104,9 +133,19 @@ function renderAnalysis() {
         <p class="analysis-note">路线分布用于发现玩家如何理解世界，不把“好结局比例”直接当作学习效果。</p>
       </section>
     </div>
+    <div class="analysis-two-column behavior-panels">
+      <section class="panel analysis-panel">
+        <div class="analysis-heading"><div><div class="eyebrow">探索停止点</div><h2>玩家为什么不再继续调查</h2></div></div>
+        <div class="branch-list behavior-list">${distributionList(analysis.stopReasonCounts, analysis.participants)}</div>
+      </section>
+      <section class="panel analysis-panel">
+        <div class="analysis-heading"><div><div class="eyebrow">线索影响</div><h2>哪条信息真正改变判断</h2></div></div>
+        <div class="branch-list behavior-list clue-list">${distributionList(analysis.decisiveClueCounts, analysis.participants)}</div>
+      </section>
+    </div>
     <section class="panel analysis-panel runs-panel">
       <div class="analysis-heading"><div><div class="eyebrow">逐局检查</div><h2>匿名测试路线</h2></div><button id="csv-button" class="ghost-button">导出汇总CSV</button></div>
-      <div class="runs-table"><table><thead><tr><th>测试编号</th><th>背景</th><th>前→后</th><th>剧情路线</th><th>证据</th><th>回溯</th><th>能动/清晰/继续</th></tr></thead><tbody>${analysis.rows.map((row) => `<tr><td>${escapeHtml(row.runId)}</td><td>${escapeHtml(row.cohort)}</td><td><b>${row.baselineScore}→${row.postScore}</b> <em>${row.delta >= 0 ? "+" : ""}${row.delta}</em></td><td>${escapeHtml(row.route)}</td><td>${row.evidenceStrength}</td><td>${row.rewinds}</td><td>${row.agency}/${row.clarity}/${row.engagement}</td></tr>`).join("")}</tbody></table></div>
+      <div class="runs-table"><table><thead><tr><th>测试编号</th><th>背景</th><th>前→后</th><th>调查顺序</th><th>停止原因</th><th>剧情路线</th><th>探索/时间/自主</th></tr></thead><tbody>${analysis.rows.map((row) => `<tr><td>${escapeHtml(row.runId)}</td><td>${escapeHtml(row.cohort)}</td><td><b>${row.baselineScore}→${row.postScore}</b> <em>${row.delta >= 0 ? "+" : ""}${row.delta}</em></td><td>${escapeHtml(row.shopRoute)}</td><td>${escapeHtml(row.stopReason)}</td><td>${escapeHtml(row.route)}</td><td>${Number.isFinite(row.exploration) ? `${row.exploration}/${row.timePressure}/${row.autonomy}` : "旧版未记录"}</td></tr>`).join("")}</tbody></table></div>
     </section>
     <section class="feedback-columns">
       <div class="panel analysis-panel"><div class="eyebrow">最有用的时刻</div>${analysis.rows.map((row) => `<blockquote><p>“${escapeHtml(row.useful || "未填写")}”</p><span>${escapeHtml(row.runId)}</span></blockquote>`).join("")}</div>
